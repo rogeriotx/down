@@ -1,6 +1,6 @@
 /**
  * The Forgotten Server - a free and open-source MMORPG server emulator
- * Copyright (C) 2016  Mark Samman <mark.samman@gmail.com>
+ * Copyright (C) 2017  Mark Samman <mark.samman@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@
 
 #include "account.h"
 #include "combat.h"
-#include "commands.h"
 #include "groups.h"
 #include "map.h"
 #include "position.h"
@@ -71,9 +70,9 @@ enum LightState_t {
 	LIGHT_STATE_SUNRISE,
 };
 
-#define EVENT_LIGHTINTERVAL 10000
-#define EVENT_DECAYINTERVAL 250
-#define EVENT_DECAY_BUCKETS 4
+static constexpr int32_t EVENT_LIGHTINTERVAL = 10000;
+static constexpr int32_t EVENT_DECAYINTERVAL = 250;
+static constexpr int32_t EVENT_DECAY_BUCKETS = 4;
 
 /**
   * Main Game class.
@@ -308,14 +307,14 @@ class Game
 		  * \param text The text to say
 		  */
 		bool internalCreatureSay(Creature* creature, SpeakClasses type, const std::string& text,
-		                         bool ghostMode, SpectatorVec* listPtr = nullptr, const Position* pos = nullptr);
+		                         bool ghostMode, SpectatorHashSet* spectatorsPtr = nullptr, const Position* pos = nullptr);
 
 		void loadPlayersRecord();
 		void checkPlayersRecord();
 
 		void sendGuildMotd(uint32_t playerId);
 		void kickPlayer(uint32_t playerId, bool displayEffect);
-		void playerReportBug(uint32_t playerId, const std::string& bug);
+		void playerReportBug(uint32_t playerId, const std::string& message);
 		void playerDebugAssert(uint32_t playerId, const std::string& assertLine, const std::string& date, const std::string& description, const std::string& comment);
 
 		bool internalStartTrade(Player* player, Player* partner, Item* tradeItem);
@@ -367,7 +366,7 @@ class Game
 		void playerSetAttackedCreature(uint32_t playerId, uint32_t creatureId);
 		void playerFollowCreature(uint32_t playerId, uint32_t creatureId);
 		void playerCancelAttackAndFollow(uint32_t playerId);
-		void playerSetFightModes(uint32_t playerId, fightMode_t fightMode, chaseMode_t chaseMode, bool secureMode);
+		void playerSetFightModes(uint32_t playerId, fightMode_t fightMode, bool chaseMode, bool secureMode);
 		void playerLookAt(uint32_t playerId, const Position& pos, uint8_t stackPos);
 		void playerLookInBattleList(uint32_t playerId, uint32_t creatureId);
 		void playerRequestAddVip(uint32_t playerId, const std::string& name);
@@ -427,16 +426,13 @@ class Game
 
 		//animation help functions
 		void addCreatureHealth(const Creature* target);
-		static void addCreatureHealth(const SpectatorVec& list, const Creature* target);
+		static void addCreatureHealth(const SpectatorHashSet& spectators, const Creature* target);
 		void addAnimatedText(const std::string& message, const Position& pos, TextColor_t color);
-		static void addAnimatedText(const SpectatorVec& list, const std::string& message, const Position& pos, TextColor_t color);
+		static void addAnimatedText(const SpectatorHashSet& spectators, const std::string& message, const Position& pos, TextColor_t color);
 		void addMagicEffect(const Position& pos, uint8_t effect);
-		static void addMagicEffect(const SpectatorVec& list, const Position& pos, uint8_t effect);
+		static void addMagicEffect(const SpectatorHashSet& spectators, const Position& pos, uint8_t effect);
 		void addDistanceEffect(const Position& fromPos, const Position& toPos, uint8_t effect);
-		static void addDistanceEffect(const SpectatorVec& list, const Position& fromPos, const Position& toPos, uint8_t effect);
-
-		void addCommandTag(char tag);
-		void resetCommandTag();
+		static void addDistanceEffect(const SpectatorHashSet& spectators, const Position& fromPos, const Position& toPos, uint8_t effect);
 
 		void startDecay(Item* item);
 		int32_t getLightHour() const {
@@ -478,13 +474,17 @@ class Game
 		bool addUniqueItem(uint16_t uniqueId, Item* item);
 		void removeUniqueItem(uint16_t uniqueId);
 
+		bool reload(ReloadTypes_t reloadType);
+
+		bool hasEffect(uint8_t effectId);
+		bool hasDistanceEffect(uint8_t effectId);
+
 		Groups groups;
 		Map map;
 		Raids raids;
 		Quests quests;
 
 	protected:
-		bool playerSayCommand(Player* player, const std::string& text);
 		bool playerSaySpell(Player* player, SpeakClasses type, const std::string& text);
 		void playerWhisper(Player* player, const std::string& text);
 		bool playerYell(Player* player, const std::string& text);
@@ -507,11 +507,10 @@ class Game
 
 		std::vector<Creature*> ToReleaseCreatures;
 		std::vector<Item*> ToReleaseItems;
-		std::vector<char> commandTags;
 
-		size_t lastBucket;
+		size_t lastBucket = 0;
 
-		WildcardTreeNode wildcardTree;
+		WildcardTreeNode wildcardTree { false };
 
 		std::map<uint32_t, Npc*> npcs;
 		std::map<uint32_t, Monster*> monsters;
@@ -521,32 +520,31 @@ class Game
 
 		std::map<uint32_t, BedItem*> bedSleepersMap;
 
-		Commands commands;
+		static constexpr int32_t LIGHT_LEVEL_DAY = 250;
+		static constexpr int32_t LIGHT_LEVEL_NIGHT = 40;
+		static constexpr int32_t SUNSET = 1305;
+		static constexpr int32_t SUNRISE = 430;
 
-		static const int32_t LIGHT_LEVEL_DAY = 250;
-		static const int32_t LIGHT_LEVEL_NIGHT = 40;
-		static const int32_t SUNSET = 1305;
-		static const int32_t SUNRISE = 430;
+		GameState_t gameState = GAME_STATE_NORMAL;
+		WorldType_t worldType = WORLD_TYPE_PVP;
 
-		GameState_t gameState;
-		WorldType_t worldType;
+		LightState_t lightState = LIGHT_STATE_DAY;
+		uint8_t lightLevel = LIGHT_LEVEL_DAY;
+		int32_t lightHour = SUNRISE + (SUNSET - SUNRISE) / 2;
+		// (1440 minutes/day)/(3600 seconds/day)*10 seconds event interval
+		int32_t lightHourDelta = 1400 * 10 / 3600;
 
-		LightState_t lightState;
-		uint8_t lightLevel;
-		int32_t lightHour;
-		int32_t lightHourDelta;
-
-		ServiceManager* serviceManager;
+		ServiceManager* serviceManager = nullptr;
 
 		void updatePlayersRecord() const;
-		uint32_t playersRecord;
+		uint32_t playersRecord = 0;
 
 		std::string motdHash;
-		uint32_t motdNum;
+		uint32_t motdNum = 0;
 
-		uint32_t lastStageLevel;
-		bool stagesEnabled;
-		bool useLastStageLevel;
+		uint32_t lastStageLevel = 0;
+		bool stagesEnabled = false;
+		bool useLastStageLevel = false;
 };
 
 #endif

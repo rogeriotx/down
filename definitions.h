@@ -1,6 +1,6 @@
 /**
  * The Forgotten Server - a free and open-source MMORPG server emulator
- * Copyright (C) 2016  Mark Samman <mark.samman@gmail.com>
+ * Copyright (C) 2017  Mark Samman <mark.samman@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,13 +20,17 @@
 #ifndef FS_DEFINITIONS_H_877452FEC245450C9F96B8FD268D8963
 #define FS_DEFINITIONS_H_877452FEC245450C9F96B8FD268D8963
 
-#define STATUS_SERVER_NAME "The Forgotten Server"
-#define STATUS_SERVER_VERSION "1.2"
-#define STATUS_SERVER_DEVELOPERS "Mark Samman"
+static constexpr auto STATUS_SERVER_NAME = "AR The Server";
+static constexpr auto STATUS_SERVER_VERSION = "1";
+static constexpr auto MINOR_VERSION = "0";
+static constexpr auto REVISION_VERSION = "DEV";
+static constexpr auto SOFTWARE_CODENAME = "";
+static constexpr auto STATUS_SERVER_DEVELOPERS = "Matt, Leandro Brewster, Erick Nunes, AR The server Contributors and The Forgotten Server Developers";
+static constexpr auto GIT_REPO = "";
 
-#define CLIENT_VERSION_MIN 860
-#define CLIENT_VERSION_MAX 860
-#define CLIENT_VERSION_STR "8.6"
+static constexpr auto CLIENT_VERSION_MIN = 860;
+static constexpr auto CLIENT_VERSION_MAX = 860;
+static constexpr auto CLIENT_VERSION_STR = "8.60";
 
 #ifndef __FUNCTION__
 #define __FUNCTION__ __func__
@@ -36,9 +40,12 @@
 #define _USE_MATH_DEFINES
 #endif
 
+#include <cassert>
 #include <cmath>
+#include <cstdint>
 #include <string>
 #include <vector>
+#include <chrono>
 
 #ifdef _WIN32
 #ifndef NOMINMAX

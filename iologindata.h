@@ -1,6 +1,6 @@
 /**
  * The Forgotten Server - a free and open-source MMORPG server emulator
- * Copyright (C) 2016  Mark Samman <mark.samman@gmail.com>
+ * Copyright (C) 2017  Mark Samman <mark.samman@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 #include "player.h"
 #include "database.h"
 
-typedef std::list<std::pair<int32_t, Item*>> ItemBlockList;
+using ItemBlockList = std::list<std::pair<int32_t, Item*>>;
 
 class IOLoginData
 {
@@ -48,7 +48,6 @@ class IOLoginData
 		static bool getGuidByNameEx(uint32_t& guid, bool& specialVip, std::string& name);
 		static std::string getNameByGuid(uint32_t guid);
 		static bool formatPlayerName(std::string& name);
-		static bool addStorageValue(uint32_t guid, uint32_t storageKey, uint32_t storageValue);
 		static void increaseBankBalance(uint32_t guid, uint64_t bankBalance);
 		static bool hasBiddedOnHouse(uint32_t guid);
 
@@ -61,7 +60,7 @@ class IOLoginData
 		static void removePremiumDays(uint32_t accountId, int32_t removeDays);
 
 	protected:
-		typedef std::map<uint32_t, std::pair<Item*, uint32_t>> ItemMap;
+		using ItemMap = std::map<uint32_t, std::pair<Item*, uint32_t>>;
 
 		static void loadItems(ItemMap& itemMap, DBResult_ptr result);
 		static bool saveItems(const Player* player, const ItemBlockList& itemList, DBInsert& query_insert, PropWriteStream& stream);

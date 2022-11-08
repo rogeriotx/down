@@ -1,6 +1,6 @@
 /**
  * The Forgotten Server - a free and open-source MMORPG server emulator
- * Copyright (C) 2016  Mark Samman <mark.samman@gmail.com>
+ * Copyright (C) 2017  Mark Samman <mark.samman@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -91,14 +91,14 @@ class NpcEventsHandler
 		Npc* npc;
 		NpcScriptInterface* scriptInterface;
 
-		int32_t creatureAppearEvent;
-		int32_t creatureDisappearEvent;
-		int32_t creatureMoveEvent;
-		int32_t creatureSayEvent;
-		int32_t playerCloseChannelEvent;
-		int32_t playerEndTradeEvent;
-		int32_t thinkEvent;
-		bool loaded;
+		int32_t creatureAppearEvent = -1;
+		int32_t creatureDisappearEvent = -1;
+		int32_t creatureMoveEvent = -1;
+		int32_t creatureSayEvent = -1;
+		int32_t playerCloseChannelEvent = -1;
+		int32_t playerEndTradeEvent = -1;
+		int32_t thinkEvent = -1;
+		bool loaded = false;
 };
 
 class Npc final : public Creature
@@ -147,6 +147,13 @@ class Npc final : public Creature
 		CreatureType_t getType() const final {
 			return CREATURETYPE_NPC;
 		}
+		
+		uint8_t getSpeechBubble() const final {
+			return speechBubble;
+		}
+		void setSpeechBubble(const uint8_t bubble) {
+			speechBubble = bubble;
+		}
 
 		void doSay(const std::string& text);
 		void doSayToPlayer(Player* player, const std::string& text);
@@ -179,7 +186,7 @@ class Npc final : public Creature
 		static uint32_t npcAutoID;
 
 	protected:
-		explicit Npc(const std::string& _name);
+		explicit Npc(const std::string& name);
 
 		void onCreatureAppear(Creature* creature, bool isLogin) final;
 		void onRemoveCreature(Creature* creature, bool isLogout) final;
@@ -201,6 +208,9 @@ class Npc final : public Creature
 		}
 		bool getNextStep(Direction& dir, uint32_t& flags) final;
 
+		void setIdle(bool idle);
+		void updateIdleStatus();
+
 		bool canWalkTo(const Position& fromPos, Direction dir) const;
 		bool getRandomStep(Direction& dir) const;
 
@@ -214,6 +224,7 @@ class Npc final : public Creature
 		std::map<std::string, std::string> parameters;
 
 		std::set<Player*> shopPlayerSet;
+		std::set<Player*> spectators;
 
 		std::string name;
 		std::string filename;
@@ -226,10 +237,13 @@ class Npc final : public Creature
 		int32_t focusCreature;
 		int32_t masterRadius;
 
+		uint8_t speechBubble;
+
 		bool floorChange;
 		bool attackable;
 		bool ignoreHeight;
 		bool loaded;
+		bool isIdle;
 
 		static NpcScriptInterface* scriptInterface;
 

@@ -1,6 +1,6 @@
 /**
  * The Forgotten Server - a free and open-source MMORPG server emulator
- * Copyright (C) 2016  Mark Samman <mark.samman@gmail.com>
+ * Copyright (C) 2017  Mark Samman <mark.samman@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,13 @@
 
 #ifndef FS_ENUMS_H_003445999FEE4A67BCECBE918B0124CE
 #define FS_ENUMS_H_003445999FEE4A67BCECBE918B0124CE
+
+enum BugReportType_t : uint8_t {
+	BUG_CATEGORY_MAP = 0,
+	BUG_CATEGORY_TYPO = 1,
+	BUG_CATEGORY_TECHNICAL = 2,
+	BUG_CATEGORY_OTHER = 3
+};
 
 enum ThreadState {
 	THREAD_STATE_RUNNING,
@@ -95,7 +102,7 @@ enum RaceType_t : uint8_t {
 	RACE_ENERGY,
 };
 
-enum CombatType_t {
+enum CombatType_t : uint16_t {
 	COMBAT_NONE = 0,
 
 	COMBAT_PHYSICALDAMAGE = 1 << 0,
@@ -340,10 +347,34 @@ enum ReturnValue {
 	RETURNVALUE_YOUNEEDAMAGICITEMTOCASTSPELL,
 	RETURNVALUE_CANNOTCONJUREITEMHERE,
 	RETURNVALUE_YOUNEEDTOSPLITYOURSPEARS,
-	RETURNVALUE_NAMEISTOOAMBIGIOUS,
+	RETURNVALUE_NAMEISTOOAMBIGUOUS,
 	RETURNVALUE_CANONLYUSEONESHIELD,
 	RETURNVALUE_NOPARTYMEMBERSINRANGE,
 	RETURNVALUE_YOUARENOTTHEOWNER,
+	RETURNVALUE_NOSUCHRAIDEXISTS,
+	RETURNVALUE_ANOTHERRAIDISALREADYEXECUTING,
+	RETURNVALUE_TRADEPLAYERFARAWAY,
+	RETURNVALUE_YOUDONTOWNTHISHOUSE,
+	RETURNVALUE_TRADEPLAYERALREADYOWNSAHOUSE,
+	RETURNVALUE_TRADEPLAYERHIGHESTBIDDER,
+	RETURNVALUE_YOUCANNOTTRADETHISHOUSE,
+	RETURNVALUE_NOTENOUGHFISTLEVEL,
+	RETURNVALUE_NOTENOUGHCLUBLEVEL,
+	RETURNVALUE_NOTENOUGHSWORDLEVEL,
+	RETURNVALUE_NOTENOUGHAXELEVEL,
+	RETURNVALUE_NOTENOUGHDISTANCELEVEL,
+	RETURNVALUE_NOTENOUGHSHIELDLEVEL,
+	RETURNVALUE_NOTENOUGHFISHLEVEL,
+	RETURNVALUE_REWARDCHESTISEMPTY,
+};
+
+enum SpeechBubble_t
+{
+	SPEECHBUBBLE_NONE = 0,
+	SPEECHBUBBLE_NORMAL = 1,
+	SPEECHBUBBLE_TRADE = 2,
+	SPEECHBUBBLE_QUEST = 3,
+	SPEECHBUBBLE_QUESTTRADER = 4,
 };
 
 enum MapMark_t
@@ -371,40 +402,21 @@ enum MapMark_t
 };
 
 struct Outfit_t {
-	Outfit_t() {
-		reset();
-	}
-
-	void reset() {
-		lookType = 0;
-		lookTypeEx = 0;
-		lookHead = 0;
-		lookBody = 0;
-		lookLegs = 0;
-		lookFeet = 0;
-		lookAddons = 0;
-	}
-
-	uint16_t lookType;
-	uint16_t lookTypeEx;
-	uint8_t lookHead;
-	uint8_t lookBody;
-	uint8_t lookLegs;
-	uint8_t lookFeet;
-	uint8_t lookAddons;
+	uint16_t lookType = 0;
+	uint16_t lookTypeEx = 0;
+	uint16_t lookMount = 0;
+	uint8_t lookHead = 0;
+	uint8_t lookBody = 0;
+	uint8_t lookLegs = 0;
+	uint8_t lookFeet = 0;
+	uint8_t lookAddons = 0;
 };
 
 struct LightInfo {
-	uint8_t level;
-	uint8_t color;
-	LightInfo() {
-		level = 0;
-		color = 0;
-	}
-	LightInfo(uint8_t _level, uint8_t _color) {
-		level = _level;
-		color = _color;
-	}
+	uint8_t level = 0;
+	uint8_t color = 0;
+	constexpr LightInfo() = default;
+	constexpr LightInfo(uint8_t level, uint8_t color) : level(level), color(color) {}
 };
 
 struct ShopInfo {
@@ -422,7 +434,7 @@ struct ShopInfo {
 	}
 
 	ShopInfo(uint16_t itemId, int32_t subType = 0, uint32_t buyPrice = 0, uint32_t sellPrice = 0, std::string realName = "")
-		: itemId(itemId), subType(subType), buyPrice(buyPrice), sellPrice(sellPrice), realName(realName) {}
+		: itemId(itemId), subType(subType), buyPrice(buyPrice), sellPrice(sellPrice), realName(std::move(realName)) {}
 };
 
 enum CombatOrigin

@@ -1,6 +1,6 @@
 /**
  * The Forgotten Server - a free and open-source MMORPG server emulator
- * Copyright (C) 2016  Mark Samman <mark.samman@gmail.com>
+ * Copyright (C) 2017  Mark Samman <mark.samman@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,11 +25,6 @@
 
 extern Game g_game;
 extern LuaEnvironment g_luaEnvironment;
-
-enum {
-	EVENT_ID_LOADING = 1,
-	EVENT_ID_USER = 1000,
-};
 
 uint32_t Npc::npcAutoID = 0x80000000;
 NpcScriptInterface* Npc::scriptInterface = nullptr;
@@ -58,14 +53,13 @@ Npc* Npc::createNpc(const std::string& name)
 	return npc.release();
 }
 
-Npc::Npc(const std::string& _name) :
-	Creature(), filename("data/npc/" + _name + ".xml")
+Npc::Npc(const std::string& name) :
+	Creature(),
+	filename("data/npc/" + name + ".xml"),
+	npcEventHandler(nullptr),
+	masterRadius(-1),
+	loaded(false)
 {
-	loaded = false;
-
-	masterRadius = -1;
-
-	npcEventHandler = nullptr;
 	reset();
 }
 
@@ -108,6 +102,7 @@ void Npc::reset()
 	floorChange = false;
 	attackable = false;
 	ignoreHeight = true;
+	speechBubble = SPEECHBUBBLE_NONE;
 	focusCreature = 0;
 
 	delete npcEventHandler;
@@ -169,9 +164,13 @@ bool Npc::loadFromXml()
 	if ((attr = npcNode.attribute("ignoreheight"))) {
 		ignoreHeight = attr.as_bool();
 	}
-
+	
+	if ((attr = npcNode.attribute("speechbubble"))) {
+		speechBubble = pugi::cast<uint32_t>(attr.value());
+	}
+	
 	if ((attr = npcNode.attribute("skull"))) {
-		setSkull(getSkullType(attr.as_string()));
+		setSkull(getSkullType(asLowerCaseString(attr.as_string())));
 	}
 
 	pugi::xml_node healthNode = npcNode.child("health");
@@ -251,10 +250,13 @@ void Npc::onCreatureAppear(Creature* creature, bool isLogin)
 		if (npcEventHandler) {
 			npcEventHandler->onCreatureAppear(creature);
 		}
-	} else if (creature->getPlayer()) {
+	} else if (Player* player = creature->getPlayer()) {
 		if (npcEventHandler) {
 			npcEventHandler->onCreatureAppear(creature);
 		}
+
+		spectators.insert(player);
+		updateIdleStatus();
 	}
 }
 
@@ -267,10 +269,13 @@ void Npc::onRemoveCreature(Creature* creature, bool isLogout)
 		if (npcEventHandler) {
 			npcEventHandler->onCreatureDisappear(creature);
 		}
-	} else if (creature->getPlayer()) {
+	} else if (Player* player = creature->getPlayer()) {
 		if (npcEventHandler) {
 			npcEventHandler->onCreatureDisappear(creature);
 		}
+
+		spectators.erase(player);
+		updateIdleStatus();
 	}
 }
 
@@ -282,6 +287,19 @@ void Npc::onCreatureMove(Creature* creature, const Tile* newTile, const Position
 	if (creature == this || creature->getPlayer()) {
 		if (npcEventHandler) {
 			npcEventHandler->onCreatureMove(creature, oldPos, newPos);
+		}
+
+		if (creature != this) {
+			Player* player = creature->getPlayer();
+
+			// if player is now in range, add to spectators list, otherwise erase
+			if (player->canSee(position)) {
+				spectators.insert(player);
+			} else {
+				spectators.erase(player);
+			}
+
+			updateIdleStatus();
 		}
 	}
 }
@@ -316,7 +334,7 @@ void Npc::onThink(uint32_t interval)
 		npcEventHandler->onThink();
 	}
 
-	if (getTimeSinceLastMove() >= walkTicks) {
+	if (!isIdle && getTimeSinceLastMove() >= walkTicks) {
 		addEventWalk();
 	}
 }
@@ -381,6 +399,27 @@ bool Npc::getNextStep(Direction& dir, uint32_t& flags)
 	}
 
 	return getRandomStep(dir);
+}
+
+void Npc::setIdle(bool idle)
+{
+	if (isRemoved() || getHealth() <= 0) {
+		return;
+	}
+
+	isIdle = idle;
+
+	if (isIdle) {
+		onIdleStatus();
+	}
+}
+
+void Npc::updateIdleStatus()
+{
+	bool status = spectators.empty();
+	if (status != isIdle) {
+		setIdle(status);
+	}
 }
 
 bool Npc::canWalkTo(const Position& fromPos, Direction dir) const
@@ -791,7 +830,7 @@ int NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 
 	npc->addShopPlayer(player);
 	player->setShopOwner(npc, buyCallback, sellCallback);
-	player->openShopWindow(items);
+	player->openShopWindow(npc, items);
 
 	pushBoolean(L, true);
 	return 1;
@@ -996,7 +1035,7 @@ int NpcScriptInterface::luaNpcOpenShopWindow(lua_State* L)
 	npc->addShopPlayer(player);
 
 	player->setShopOwner(npc, buyCallback, sellCallback);
-	player->openShopWindow(items);
+	player->openShopWindow(npc, items);
 
 	pushBoolean(L, true);
 	return 1;
@@ -1041,21 +1080,13 @@ int NpcScriptInterface::luaNpcCloseShopWindow(lua_State* L)
 	return 1;
 }
 
-NpcEventsHandler::NpcEventsHandler(const std::string& file, Npc* npc)
+NpcEventsHandler::NpcEventsHandler(const std::string& file, Npc* npc) :
+	npc(npc), scriptInterface(npc->getScriptInterface())
 {
-	this->npc = npc;
-	scriptInterface = npc->getScriptInterface();
 	loaded = scriptInterface->loadFile("data/npc/scripts/" + file, npc) == 0;
 	if (!loaded) {
 		std::cout << "[Warning - NpcScript::NpcScript] Can not load script: " << file << std::endl;
 		std::cout << scriptInterface->getLastLuaError() << std::endl;
-		creatureSayEvent = -1;
-		creatureDisappearEvent = -1;
-		creatureAppearEvent = -1;
-		creatureMoveEvent = -1;
-		playerCloseChannelEvent = -1;
-		playerEndTradeEvent = -1;
-		thinkEvent = -1;
 	} else {
 		creatureSayEvent = scriptInterface->getEvent("onCreatureSay");
 		creatureDisappearEvent = scriptInterface->getEvent("onCreatureDisappear");
